@@ -67,7 +67,7 @@ func main() {
 	rand.Seed(time.Now().Unix())
 
 	// New bolt database
-	db, err := simplebolt.New("gifbot.db")
+	db, err := simplebolt.New(os.Getenv("DATABASE_PATH"))
 	if err != nil {
 		log.Fatalf("Could not create database! %s", err)
 	}
