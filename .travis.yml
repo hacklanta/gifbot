@@ -1,0 +1,13 @@
+sudo: required
+
+services:
+  - docker
+
+language: go
+
+go:
+  - "1.9.x"
+
+script:
+  - go build
+  - docker build .
