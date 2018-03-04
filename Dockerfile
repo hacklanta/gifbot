@@ -1,14 +1,12 @@
-FROM alpine:3.7
+FROM debian:jessie-slim
 
 MAINTAINER Matt Farmer <matt@frmr.me>
 
-RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
-
-RUN wget -O /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.1/dumb-init_1.2.1_amd64
+ADD https://github.com/Yelp/dumb-init/releases/download/v1.2.1/dumb-init_1.2.1_amd64 /usr/local/bin/dumb-init
 RUN chmod +x /usr/local/bin/dumb-init
 
-ADD gifbot /gifbot
+ADD gifbot /usr/local/bin/gifbot
 
 ENTRYPOINT ["/usr/local/bin/dumb-init"]
 
-CMD ["/gifbot"]
+CMD ["/usr/local/bin/gifbot"]
