@@ -20,6 +20,11 @@ var (
 	botId = ""
 )
 
+type storedgif struct {
+	Url string `json:"url"`
+	Creator string `json:"creator"`
+}
+
 func handleMessage(db *simplebolt.Database, rtm *slack.RTM, messageText string, channel string) {
 	if requestGifRegex.MatchString(messageText) {
 		keyword := requestGifRegex.FindStringSubmatch(messageText)[1]
