@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"time"
+	"encoding/json"
 
 	"github.com/nlopes/slack"
 	"github.com/xyproto/simplebolt"
@@ -20,9 +21,14 @@ var (
 	botId = ""
 )
 
-func handleMessage(db *simplebolt.Database, rtm *slack.RTM, messageText string, channel string) {
-	if requestGifRegex.MatchString(messageText) {
-		keyword := requestGifRegex.FindStringSubmatch(messageText)[1]
+type storedgif struct {
+	Url string `json:"url"`
+	Creator string `json:"creator"`
+}
+
+func handleMessage(db *simplebolt.Database, rtm *slack.RTM, msg slack.Msg) {
+	if requestGifRegex.MatchString(msg.Text) {
+		keyword := requestGifRegex.FindStringSubmatch(msg.Text)[1]
 
 		setstore, err := simplebolt.NewSet(db, keyword)
 		if err != nil {
@@ -35,31 +41,52 @@ func handleMessage(db *simplebolt.Database, rtm *slack.RTM, messageText string, 
 		}
 
 		if len(gifs) > 0 {
-			rtm.SendMessage(rtm.NewOutgoingMessage(gifs[rand.Intn(len(gifs))], channel))
+			marshaledGifJson := gifs[rand.Intn(len(gifs))]
+
+			if string(marshaledGifJson[0]) == "{" {
+				storedGifInstance := storedgif{}
+				err := json.Unmarshal([]byte(marshaledGifJson), storedGifInstance)
+
+				if err != nil {
+					log.Fatalf("Could not unmarshal gif object: %s", err)
+				}
+
+				rtm.SendMessage(rtm.NewOutgoingMessage(storedGifInstance.Url, msg.Channel))
+			} else {
+				// Legacy situation where the data structure wasn't there.
+				rtm.SendMessage(rtm.NewOutgoingMessage(marshaledGifJson, msg.Channel))
+			}
 		} else {
-			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", channel))
+			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", msg.Channel))
 		}
 		return
 	}
 
-	if storeGifRegex.MatchString(messageText) {
-		keyword := storeGifRegex.FindStringSubmatch(messageText)[1]
-		url := storeGifRegex.FindStringSubmatch(messageText)[2]
+	if storeGifRegex.MatchString(msg.Text) {
+		matches := storeGifRegex.FindStringSubmatch(msg.Text)
+		keyword := matches[1]
+		url := matches[2]
+		storedGifInstance := storedgif{url, msg.User}
+		marshaledGifJson, err := json.Marshal(storedGifInstance)
+
+		if err != nil {
+			log.Fatalf("Could not serialize josn: %s", err)
+		}
 
 		setstore, err := simplebolt.NewSet(db, keyword)
 		if err != nil {
 			log.Fatalf("Could not retrieve set for keyword %s: %s", keyword, err)
 		}
 
-		setstore.Add(url)
-		rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", channel))
+		setstore.Add(string(marshaledGifJson))
+		rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", msg.Channel))
 		return
 	}
 
 	helpRegex := regexp.MustCompile(fmt.Sprintf("^<@%s> help$", botId))
-	if helpRegex.MatchString(messageText) {
+	if helpRegex.MatchString(msg.Text) {
 		helpText := "Hi I'm gifbot. Supported commands:\n\n```\n.gif <keyword> Get a stored gif for a keyword\n.storegif <keyword> <url> Store a URL under a keyword\n```"
-		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, channel))
+		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, msg.Channel))
 	}
 }
 
@@ -93,7 +120,7 @@ func main() {
 			fmt.Println("Connection counter:", ev.ConnectionCount)
 
 		case *slack.MessageEvent:
-			handleMessage(db, rtm, ev.Msg.Text, ev.Msg.Channel)
+			handleMessage(db, rtm, ev.Msg)
 
 		case *slack.LatencyReport:
 			fmt.Printf("Current latency: %v\n", ev.Value)
