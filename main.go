@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"regexp"
-	"math/rand"
-  "time"
+	"time"
 
 	"github.com/nlopes/slack"
 	"github.com/xyproto/simplebolt"
@@ -21,20 +21,20 @@ var (
 )
 
 func handleMessage(db *simplebolt.Database, rtm *slack.RTM, messageText string, channel string) {
-	if (requestGifRegex.MatchString(messageText)) {
+	if requestGifRegex.MatchString(messageText) {
 		keyword := requestGifRegex.FindStringSubmatch(messageText)[1]
 
 		setstore, err := simplebolt.NewSet(db, keyword)
-		if (err != nil) {
+		if err != nil {
 			log.Fatalf("Could not retrieve set for keyword %s: %s", keyword, err)
 		}
 
 		gifs, err := setstore.GetAll()
-		if (err != nil) {
+		if err != nil {
 			log.Fatalf("Could not retrieve values for keyword: %s", err)
 		}
 
-		if (len(gifs) > 0) {
+		if len(gifs) > 0 {
 			rtm.SendMessage(rtm.NewOutgoingMessage(gifs[rand.Intn(len(gifs))], channel))
 		} else {
 			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", channel))
@@ -42,12 +42,12 @@ func handleMessage(db *simplebolt.Database, rtm *slack.RTM, messageText string, 
 		return
 	}
 
-	if (storeGifRegex.MatchString(messageText)) {
+	if storeGifRegex.MatchString(messageText) {
 		keyword := storeGifRegex.FindStringSubmatch(messageText)[1]
 		url := storeGifRegex.FindStringSubmatch(messageText)[2]
 
 		setstore, err := simplebolt.NewSet(db, keyword)
-		if (err != nil) {
+		if err != nil {
 			log.Fatalf("Could not retrieve set for keyword %s: %s", keyword, err)
 		}
 
@@ -57,7 +57,7 @@ func handleMessage(db *simplebolt.Database, rtm *slack.RTM, messageText string, 
 	}
 
 	helpRegex := regexp.MustCompile(fmt.Sprintf("^<@%s> help$", botId))
-	if (helpRegex.MatchString(messageText)) {
+	if helpRegex.MatchString(messageText) {
 		helpText := "Hi I'm gifbot. Supported commands:\n\n```\n.gif <keyword> Get a stored gif for a keyword\n.storegif <keyword> <url> Store a URL under a keyword\n```"
 		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, channel))
 	}
