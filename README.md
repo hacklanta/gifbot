@@ -11,7 +11,7 @@ Then you can recall any nailed-it gif at random by just dropping the following m
 any channel that Gifbot is in:
 
 ```
-.gif nailedit
+.gif nailed-it
 ```
 
 If multiple GIFs are defined, Gifbot will pick one at random.
