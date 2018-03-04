@@ -42,14 +42,20 @@ func handleMessage(db *simplebolt.Database, rtm *slack.RTM, msg slack.Msg) {
 
 		if len(gifs) > 0 {
 			marshaledGifJson := gifs[rand.Intn(len(gifs))]
-			storedGifInstance := storedgif{}
-			err := json.Unmarshal([]byte(marshaledGifJson), storedGifInstance)
 
-			if err != nil {
-				log.Fatalf("Could not unmarshal gif object: %s", err)
+			if string(marshaledGifJson[0]) == "{" {
+				storedGifInstance := storedgif{}
+				err := json.Unmarshal([]byte(marshaledGifJson), storedGifInstance)
+
+				if err != nil {
+					log.Fatalf("Could not unmarshal gif object: %s", err)
+				}
+
+				rtm.SendMessage(rtm.NewOutgoingMessage(storedGifInstance.Url, msg.Channel))
+			} else {
+				// Legacy situation where the data structure wasn't there.
+				rtm.SendMessage(rtm.NewOutgoingMessage(marshaledGifJson, msg.Channel))
 			}
-
-			rtm.SendMessage(rtm.NewOutgoingMessage(storedGifInstance.Url, msg.Channel))
 		} else {
 			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", msg.Channel))
 		}
