@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"time"
+	"encoding/json"
 
 	"github.com/nlopes/slack"
 	"github.com/xyproto/simplebolt"
@@ -40,7 +41,15 @@ func handleMessage(db *simplebolt.Database, rtm *slack.RTM, msg slack.Msg) {
 		}
 
 		if len(gifs) > 0 {
-			rtm.SendMessage(rtm.NewOutgoingMessage(gifs[rand.Intn(len(gifs))], msg.Channel))
+			marshaledGifJson := gifs[rand.Intn(len(gifs))]
+			storedGifInstance := storedgif{}
+			err := json.Unmarshal([]byte(marshaledGifJson), storedGifInstance)
+
+			if err != nil {
+				log.Fatalf("Could not unmarshal gif object: %s", err)
+			}
+
+			rtm.SendMessage(rtm.NewOutgoingMessage(storedGifInstance.Url, msg.Channel))
 		} else {
 			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", msg.Channel))
 		}
@@ -48,15 +57,22 @@ func handleMessage(db *simplebolt.Database, rtm *slack.RTM, msg slack.Msg) {
 	}
 
 	if storeGifRegex.MatchString(msg.Text) {
-		keyword := storeGifRegex.FindStringSubmatch(msg.Text)[1]
-		url := storeGifRegex.FindStringSubmatch(msg.Text)[2]
+		matches := storeGifRegex.FindStringSubmatch(msg.Text)
+		keyword := matches[1]
+		url := matches[2]
+		storedGifInstance := storedgif{url, msg.User}
+		marshaledGifJson, err := json.Marshal(storedGifInstance)
+
+		if err != nil {
+			log.Fatalf("Could not serialize josn: %s", err)
+		}
 
 		setstore, err := simplebolt.NewSet(db, keyword)
 		if err != nil {
 			log.Fatalf("Could not retrieve set for keyword %s: %s", keyword, err)
 		}
 
-		setstore.Add(url)
+		setstore.Add(string(marshaledGifJson))
 		rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", msg.Channel))
 		return
 	}
