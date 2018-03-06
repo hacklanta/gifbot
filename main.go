@@ -68,7 +68,7 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 	}
 
 	if deleteGifRegex.MatchString(msg.Text) {
-		matches := storeGifRegex.FindStringSubmatch(msg.Text)
+		matches := deleteGifRegex.FindStringSubmatch(msg.Text)
 		keyword := matches[1]
 		url := matches[2]
 
