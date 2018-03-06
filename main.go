@@ -19,13 +19,17 @@ var (
 
 	storeGifRegex = regexp.MustCompile("^\\.storegif ([^ ]+) <([^ ]+)>$")
 
+	deleteGifRegex = regexp.MustCompile("^\\.deletegif ([^ ]+) <([^ ]+)>$")
+
 	botId = ""
 )
 
 func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 	if requestGifRegex.MatchString(msg.Text) {
 		keyword := requestGifRegex.FindStringSubmatch(msg.Text)[1]
-		gifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM gifbot_gifs)) LIMIT 1;", keyword)
+		gifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? ORDER BY RANDOM() LIMIT 1;", keyword)
+		defer gifRows.Close()
+
 		if err != nil {
 			log.Fatalf("Could not retrieve gif: %s", err)
 		}
@@ -42,24 +46,39 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 	}
 
 	if storeGifRegex.MatchString(msg.Text) {
-			matches := storeGifRegex.FindStringSubmatch(msg.Text)
-			keyword := matches[1]
-			url := matches[2]
+		matches := storeGifRegex.FindStringSubmatch(msg.Text)
+		keyword := matches[1]
+		url := matches[2]
 
-			existingGifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
+		existingGifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
+		defer existingGifRows.Close()
+		if err != nil {
+			log.Fatalf("DB communication error: %v", err)
+		}
+
+		if existingGifRows.Next() == false {
+			_, err := db.Exec("INSERT INTO gifbot_gifs VALUES (?, ?, ?)", keyword, url, msg.User)
 			if err != nil {
 				log.Fatalf("DB communication error: %v", err)
 			}
+		}
 
-			if existingGifRows.Next() == false {
-				_, err := db.Exec("INSERT INTO gifbot_gifs VALUES (?, ?, ?)", keyword, url, msg.User)
-				if err != nil {
-					log.Fatalf("DB communication error: %v", err)
-				}
-			}
+		rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", msg.Channel))
+		return
+	}
 
-			rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", msg.Channel))
-			return
+	if deleteGifRegex.MatchString(msg.Text) {
+		matches := storeGifRegex.FindStringSubmatch(msg.Text)
+		keyword := matches[1]
+		url := matches[2]
+
+		_, err := db.Exec("DELETE FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
+		if err != nil {
+			log.Fatalf("DB communication error: %v", err)
+		}
+
+		rtm.SendMessage(rtm.NewOutgoingMessage("Aye, sir.", msg.Channel))
+		return
 	}
 
 	helpRegex := regexp.MustCompile(fmt.Sprintf("^<@%s> help$", botId))
@@ -71,6 +90,7 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 
 func migrate(db *sql.DB) {
 	existingTableRows, err := db.Query("SELECT name FROM sqlite_temp_master WHERE type='table';")
+	defer existingTableRows.Close()
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
