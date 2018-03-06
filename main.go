@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/nlopes/slack"
-	"github.com/xyproto/simplebolt"
+
+	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -20,59 +22,87 @@ var (
 	botId = ""
 )
 
-func handleMessage(db *simplebolt.Database, rtm *slack.RTM, messageText string, channel string) {
-	if requestGifRegex.MatchString(messageText) {
-		keyword := requestGifRegex.FindStringSubmatch(messageText)[1]
-
-		setstore, err := simplebolt.NewSet(db, keyword)
+func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
+	if requestGifRegex.MatchString(msg.Text) {
+		keyword := requestGifRegex.FindStringSubmatch(msg.Text)[1]
+		gifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM gifbot_gifs)) LIMIT 1;", keyword)
 		if err != nil {
-			log.Fatalf("Could not retrieve set for keyword %s: %s", keyword, err)
+			log.Fatalf("Could not retrieve gif: %s", err)
 		}
 
-		gifs, err := setstore.GetAll()
-		if err != nil {
-			log.Fatalf("Could not retrieve values for keyword: %s", err)
-		}
+		if gifRows.Next() == true {
+			gifUrl := ""
+			gifRows.Scan(&gifUrl)
 
-		if len(gifs) > 0 {
-			rtm.SendMessage(rtm.NewOutgoingMessage(gifs[rand.Intn(len(gifs))], channel))
+			rtm.SendMessage(rtm.NewOutgoingMessage(gifUrl, msg.Channel))
 		} else {
-			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", channel))
+			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", msg.Channel))
 		}
 		return
 	}
 
-	if storeGifRegex.MatchString(messageText) {
-		keyword := storeGifRegex.FindStringSubmatch(messageText)[1]
-		url := storeGifRegex.FindStringSubmatch(messageText)[2]
+	if storeGifRegex.MatchString(msg.Text) {
+			matches := storeGifRegex.FindStringSubmatch(msg.Text)
+			keyword := matches[1]
+			url := matches[2]
 
-		setstore, err := simplebolt.NewSet(db, keyword)
-		if err != nil {
-			log.Fatalf("Could not retrieve set for keyword %s: %s", keyword, err)
-		}
+			existingGifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
+			if err != nil {
+				log.Fatalf("DB communication error: %v", err)
+			}
 
-		setstore.Add(url)
-		rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", channel))
-		return
+			if existingGifRows.Next() == false {
+				_, err := db.Exec("INSERT INTO gifbot_gifs VALUES (?, ?, ?)", keyword, url, msg.User)
+				if err != nil {
+					log.Fatalf("DB communication error: %v", err)
+				}
+			}
+
+			rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", msg.Channel))
+			return
 	}
 
 	helpRegex := regexp.MustCompile(fmt.Sprintf("^<@%s> help$", botId))
-	if helpRegex.MatchString(messageText) {
+	if helpRegex.MatchString(msg.Text) {
 		helpText := "Hi I'm gifbot. Supported commands:\n\n```\n.gif <keyword> Get a stored gif for a keyword\n.storegif <keyword> <url> Store a URL under a keyword\n```"
-		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, channel))
+		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, msg.Channel))
+	}
+}
+
+func migrate(db *sql.DB) {
+	existingTableRows, err := db.Query("SELECT name FROM sqlite_temp_master WHERE type='table';")
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+
+	// No tables exist
+	if existingTableRows.Next() == false {
+		db.Exec("CREATE TABLE gifbot_metadata (key text, value text);")
+		db.Exec("CREATE TABLE gifbot_gifs (keyword text, url text, creator text);")
+		db.Exec("CREATE INDEX idx_gifbot_gifs_keyword_url ON gifbot_gifs (keyword, url);")
+		db.Exec("INSERT INTO gifbot_metadata (\"schema_version\", \"1\");")
+		return
 	}
 }
 
 func main() {
 	rand.Seed(time.Now().Unix())
 
-	// New bolt database
-	db, err := simplebolt.New(os.Getenv("DATABASE_PATH"))
+	db, err := sql.Open("sqlite3", os.Getenv("DATABASE_PATH"))
 	if err != nil {
-		log.Fatalf("Could not create database! %s", err)
+		log.Fatal(err)
 	}
 	defer db.Close()
 
+	err = db.Ping()
+	if err != nil {
+		log.Fatalf("Could not connect to db: %v", err)
+	}
+
+	// Run migrations
+	migrate(db)
+
+	// Set up slack connection
 	api := slack.New(os.Getenv("SLACK_TOKEN"))
 	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
 	slack.SetLogger(logger)
@@ -93,7 +123,7 @@ func main() {
 			fmt.Println("Connection counter:", ev.ConnectionCount)
 
 		case *slack.MessageEvent:
-			handleMessage(db, rtm, ev.Msg.Text, ev.Msg.Channel)
+			handleMessage(db, rtm, ev.Msg)
 
 		case *slack.LatencyReport:
 			fmt.Printf("Current latency: %v\n", ev.Value)
