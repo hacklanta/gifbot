@@ -17,11 +17,15 @@ import (
 var (
 	requestGifRegex = regexp.MustCompile("^\\.gif ([^ ]+)$")
 
-	storeGifRegex = regexp.MustCompile("^\\.storegif ([^ ]+) <([^ ]+)>$")
+	storeGifRegex = regexp.MustCompile("^\\.gifstore ([^ ]+) <([^ ]+)>$")
 
-	deleteGifRegex = regexp.MustCompile("^\\.deletegif ([^ ]+) <([^ ]+)>$")
+	deleteGifRegex = regexp.MustCompile("^\\.gifdelete ([^ ]+) <([^ ]+)>$")
+
+	attributeGifRegex = regexp.MustCompile("^\\.gifattribute ([^ ]+) <([^ ]+)>$")
 
 	botId = ""
+
+	helpRegex = regexp.MustCompile(".*")
 )
 
 func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
@@ -81,9 +85,37 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 		return
 	}
 
-	helpRegex := regexp.MustCompile(fmt.Sprintf("^<@%s> help$", botId))
+	if attributeGifRegex.MatchString(msg.Text) {
+		matches := attributeGifRegex.FindStringSubmatch(msg.Text)
+		keyword := matches[1]
+		url := matches[2]
+
+		gifRows, err := db.Query("SELECT creator FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
+		defer gifRows.Close()
+
+		if err != nil {
+			log.Fatalf("Could not retrieve gif: %s", err)
+		}
+
+		if gifRows.Next() == true {
+			gifCreator := ""
+			gifRows.Scan(&gifCreator)
+
+			rtm.SendMessage(rtm.NewOutgoingMessage(fmt.Sprintf("<@%s>", gifCreator), msg.Channel))
+		} else {
+			rtm.SendMessage(rtm.NewOutgoingMessage("No matching gifs were found", msg.Channel))
+		}
+		return
+	}
+
 	if helpRegex.MatchString(msg.Text) {
-		helpText := "Hi I'm gifbot. Supported commands:\n\n```\n.gif <keyword> Get a stored gif for a keyword\n.storegif <keyword> <url> Store a URL under a keyword\n```"
+		helpText := "Hi I'm gifbot. Supported commands:\n" +
+		"```\n" +
+		".gif <keyword> Get a stored gif for a keyword\n" +
+		".gifstore <keyword> <url> Store a URL under a keyword\n" +
+		".gifdelete <keyword> <url> Delete a URL from a keyword\n" +
+		".gifattribute <keyword> <url> Figure out who is responsible for a URL.\n" +
+		"```"
 		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, msg.Channel))
 	}
 }
@@ -140,6 +172,7 @@ func main() {
 			fmt.Println("Infos:", ev.Info)
 			fmt.Println("User ID: ", ev.Info.User.ID)
 			botId = ev.Info.User.ID
+			helpRegex = regexp.MustCompile(fmt.Sprintf("^<@%s> help$", botId))
 			fmt.Println("Connection counter:", ev.ConnectionCount)
 
 		case *slack.MessageEvent:
