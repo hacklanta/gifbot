@@ -14,7 +14,12 @@ any channel that Gifbot is in:
 .gif nailed-it
 ```
 
-If multiple GIFs are defined, Gifbot will pick one at random. You can also @ your gifbot
+If multiple GIFs are defined, Gifbot will pick one at random. You can also @ your gifbot with the following
+message to see all the commands it supports:
+
+```
+@gifbot help
+```
 
 ## Getting
 
