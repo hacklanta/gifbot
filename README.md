@@ -4,7 +4,7 @@ This is a simple Slack bot for storing GIFs under keywords for use later. Once t
 running, you can store a GIF under a keyword by invoking the .storegif command:
 
 ```
-.storegif nailed-it https://cdn-images-1.medium.com/max/1600/1*mvD_4BDe6H3Duz4RsmZsbg.gif
+.gifstore nailed-it https://cdn-images-1.medium.com/max/1600/1*mvD_4BDe6H3Duz4RsmZsbg.gif
 ```
 
 Then you can recall any nailed-it gif at random by just dropping the following message into
@@ -14,7 +14,7 @@ any channel that Gifbot is in:
 .gif nailed-it
 ```
 
-If multiple GIFs are defined, Gifbot will pick one at random.
+If multiple GIFs are defined, Gifbot will pick one at random. You can also @ your gifbot
 
 ## Getting
 
