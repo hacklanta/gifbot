@@ -155,10 +155,12 @@ func main() {
 	migrate(db)
 
 	// Set up slack connection
-	api := slack.New(os.Getenv("SLACK_TOKEN"))
 	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
-	slack.SetLogger(logger)
-	api.SetDebug(true)
+	api := slack.New(
+		os.Getenv("SLACK_TOKEN"),
+		slack.OptionLog(logger),
+		slack.OptionDebug(true),
+	)
 
 	rtm := api.NewRTM()
 	go rtm.ManageConnection()
