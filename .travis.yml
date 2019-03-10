@@ -5,7 +5,7 @@ language: go
 go:
 - 1.11.x
 script:
-- go build
+- go build cmd/gifbot.go
 - docker build -t hacklanta/gifbot .
 deploy:
   provider: script
