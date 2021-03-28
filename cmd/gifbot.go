@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -55,7 +57,18 @@ func handleMessage(rdb *redis.Client, rtm *slack.RTM, msg slack.Msg) {
 
 		key := "gif_" + keyword
 
+		hasher := md5.New()
+		io.WriteString(hasher, url)
+		urlHash := fmt.Sprintf("%x", hasher.Sum(nil))
+		metadataKey := "meta_" + urlHash
+
 		_, err := rdb.SAdd(context.TODO(), key, url).Result()
+		if err != nil {
+			rtm.SendMessage(rtm.NewOutgoingMessage("Internal error, attempting restart", msg.Channel))
+			log.Fatalf("Error communicating with redis", err)
+		}
+
+		_, err = rdb.HSet(context.TODO(), metadataKey, "user", msg.User, "time", time.Now()).Result()
 		if err != nil {
 			rtm.SendMessage(rtm.NewOutgoingMessage("Internal error, attempting restart", msg.Channel))
 			log.Fatalf("Error communicating with redis", err)
@@ -83,6 +96,28 @@ func handleMessage(rdb *redis.Client, rtm *slack.RTM, msg slack.Msg) {
 	}
 
 	if attributeGifRegex.MatchString(msg.Text) {
+		matches := attributeGifRegex.FindStringSubmatch(msg.Text)
+		url := matches[2]
+
+		hasher := md5.New()
+		io.WriteString(hasher, url)
+		urlHash := fmt.Sprintf("%x", hasher.Sum(nil))
+		metadataKey := "meta_" + urlHash
+
+		metadata, err := rdb.HGetAll(context.TODO(), metadataKey).Result()
+		switch {
+		case err == redis.Nil:
+			rtm.SendMessage(rtm.NewOutgoingMessage("No metadata found for those parameters", msg.Channel))
+			return
+		case err != nil:
+			log.Fatalf("Error communicating with redis", err)
+			return
+		}
+
+		resultText := fmt.Sprintf("That was created by <@%s> at %s", metadata["user"], metadata["time"])
+
+		rtm.SendMessage(rtm.NewOutgoingMessage(resultText, msg.Channel))
+
 		return
 	}
 
