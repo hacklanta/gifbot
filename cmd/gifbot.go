@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -31,24 +32,23 @@ var (
 	helpRegex = regexp.MustCompile(".*")
 )
 
-func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
+func handleMessage(rdb *redis.Client, rtm *slack.RTM, msg slack.Msg) {
 	if requestGifRegex.MatchString(msg.Text) {
-		// keyword := requestGifRegex.FindStringSubmatch(msg.Text)[1]
-		// gifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? ORDER BY RANDOM() LIMIT 1;", keyword)
-		// defer gifRows.Close()
+		keyword := requestGifRegex.FindStringSubmatch(msg.Text)[1]
+		key := "gif_" + keyword
 
-		// if err != nil {
-		// 	log.Fatalf("Could not retrieve gif: %s", err)
-		// }
+		gifUrl, err := rdb.SRandMember(context.TODO(), key).Result()
+		switch {
+		case err == redis.Nil:
+			rtm.SendMessage(rtm.NewOutgoingMessage("No matches for that keyword", msg.Channel))
+			return
 
-		// if gifRows.Next() == true {
-		// 	gifUrl := ""
-		// 	gifRows.Scan(&gifUrl)
+		case err != nil:
+			rtm.SendMessage(rtm.NewOutgoingMessage("Internal error, attempting restart", msg.Channel))
+			log.Fatalf("Error communicating with redis", err)
+		}
 
-		// 	rtm.SendMessage(rtm.NewOutgoingMessage(gifUrl, msg.Channel))
-		// } else {
-		// 	rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", msg.Channel))
-		// }
+		rtm.SendMessage(rtm.NewOutgoingMessage(gifUrl, msg.Channel))
 		return
 	}
 
@@ -57,17 +57,12 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 		keyword := matches[1]
 		url := matches[2]
 
-		existingGifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
-		defer existingGifRows.Close()
-		if err != nil {
-			log.Fatalf("DB communication error: %v", err)
-		}
+		key := "gif_" + keyword
 
-		if existingGifRows.Next() == false {
-			_, err := db.Exec("INSERT INTO gifbot_gifs VALUES (?, ?, ?)", keyword, url, msg.User)
-			if err != nil {
-				log.Fatalf("DB communication error: %v", err)
-			}
+		_, err := rdb.SAdd(context.TODO(), key, url).Result()
+		if err != nil {
+			rtm.SendMessage(rtm.NewOutgoingMessage("Internal error, attempting restart", msg.Channel))
+			log.Fatalf("Error communicating with redis", err)
 		}
 
 		rtm.SendMessage(rtm.NewOutgoingMessage("Got it.", msg.Channel))
@@ -75,39 +70,23 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 	}
 
 	if deleteGifRegex.MatchString(msg.Text) {
-		// matches := deleteGifRegex.FindStringSubmatch(msg.Text)
-		// keyword := matches[1]
-		// url := matches[2]
+		matches := deleteGifRegex.FindStringSubmatch(msg.Text)
+		keyword := matches[1]
+		url := matches[2]
 
-		// _, err := db.Exec("DELETE FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
-		// if err != nil {
-		// 	log.Fatalf("DB communication error: %v", err)
-		// }
+		key := "gif_" + keyword
 
-		// rtm.SendMessage(rtm.NewOutgoingMessage("Aye, sir.", msg.Channel))
+		_, err := rdb.SRem(context.TODO(), key, url).Result()
+		if err != nil {
+			rtm.SendMessage(rtm.NewOutgoingMessage("Internal error, attempting restart", msg.Channel))
+			log.Fatalf("Error communicating with redis", err)
+		}
+
+		rtm.SendMessage(rtm.NewOutgoingMessage("GIF Removed.", msg.Channel))
 		return
 	}
 
 	if attributeGifRegex.MatchString(msg.Text) {
-		// matches := attributeGifRegex.FindStringSubmatch(msg.Text)
-		// keyword := matches[1]
-		// url := matches[2]
-
-		// gifRows, err := db.Query("SELECT creator FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
-		// defer gifRows.Close()
-
-		// if err != nil {
-		// 	log.Fatalf("Could not retrieve gif: %s", err)
-		// }
-
-		// if gifRows.Next() == true {
-		// 	gifCreator := ""
-		// 	gifRows.Scan(&gifCreator)
-
-		// 	rtm.SendMessage(rtm.NewOutgoingMessage(fmt.Sprintf("<@%s>", gifCreator), msg.Channel))
-		// } else {
-		// 	rtm.SendMessage(rtm.NewOutgoingMessage("No matching gifs were found", msg.Channel))
-		// }
 		return
 	}
 
@@ -167,7 +146,7 @@ func main() {
 			fmt.Println("Connection counter:", ev.ConnectionCount)
 
 		case *slack.MessageEvent:
-			handleMessage(db, rtm, ev.Msg)
+			handleMessage(rdb, rtm, ev.Msg)
 
 		case *slack.RTMError:
 			fmt.Printf("Error: %s\n", ev.Error())
