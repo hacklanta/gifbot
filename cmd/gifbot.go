@@ -127,7 +127,7 @@ func handleMessage(rdb *redis.Client, rtm *slack.RTM, msg slack.Msg) {
 			".gif <keyword> Get a stored gif for a keyword\n" +
 			".gifstore <keyword> <url> Store a URL under a keyword\n" +
 			".gifdelete <keyword> <url> Delete a URL from a keyword\n" +
-			//".gifattribute <keyword> <url> Figure out who is responsible for a URL.\n" +
+			".gifattribute <keyword> <url> Figure out who is responsible for a URL.\n" +
 			"```"
 		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, msg.Channel))
 	}
