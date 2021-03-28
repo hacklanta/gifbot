@@ -1,15 +1,14 @@
-FROM debian:jessie-slim
+FROM golang:1.15.10-buster AS builder
 
-MAINTAINER Matt Farmer <matt@frmr.me>
+RUN mkdir -p /opt/src
+COPY cmd /opt/src/cmd
+COPY go.* /opt/src/
+WORKDIR /opt/src
+RUN go build cmd/gifbot.go
 
-ADD https://github.com/Yelp/dumb-init/releases/download/v1.2.1/dumb-init_1.2.1_amd64 /usr/local/bin/dumb-init
-
-RUN chmod +x /usr/local/bin/dumb-init
+FROM debian:buster-slim AS runner
 
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /opt/src/gifbot /usr/local/bin/gifbot
 
-ADD gifbot /usr/local/bin/gifbot
-
-ENTRYPOINT ["/usr/local/bin/dumb-init"]
-
-CMD ["/usr/local/bin/gifbot"]
+ENTRYPOINT ["/usr/local/bin/gifbot"]
