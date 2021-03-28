@@ -11,7 +11,10 @@ import (
 	"github.com/nlopes/slack"
 
 	"database/sql"
+
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/go-redis/redis/v8"
 )
 
 var (
@@ -110,12 +113,12 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 
 	if helpRegex.MatchString(msg.Text) {
 		helpText := "Hi I'm gifbot. Supported commands:\n" +
-		"```\n" +
-		".gif <keyword> Get a stored gif for a keyword\n" +
-		".gifstore <keyword> <url> Store a URL under a keyword\n" +
-		".gifdelete <keyword> <url> Delete a URL from a keyword\n" +
-		".gifattribute <keyword> <url> Figure out who is responsible for a URL.\n" +
-		"```"
+			"```\n" +
+			".gif <keyword> Get a stored gif for a keyword\n" +
+			".gifstore <keyword> <url> Store a URL under a keyword\n" +
+			".gifdelete <keyword> <url> Delete a URL from a keyword\n" +
+			".gifattribute <keyword> <url> Figure out who is responsible for a URL.\n" +
+			"```"
 		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, msg.Channel))
 	}
 }
@@ -139,6 +142,14 @@ func migrate(db *sql.DB) {
 
 func main() {
 	rand.Seed(time.Now().Unix())
+
+	rdbopt, err := redis.ParseURL(os.Getenv("REDIS_URL"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rdb := redis.NewClient(rdbopt)
+	defer rdb.Close()
 
 	db, err := sql.Open("sqlite3", os.Getenv("DATABASE_PATH"))
 	if err != nil {

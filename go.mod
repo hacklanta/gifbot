@@ -3,6 +3,7 @@ module github.com/hacklanta/gifbot
 go 1.15
 
 require (
+	github.com/go-redis/redis/v8 v8.8.0
 	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/mattn/go-sqlite3 v1.10.0
 	github.com/nlopes/slack v0.5.0
