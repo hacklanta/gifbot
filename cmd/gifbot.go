@@ -33,22 +33,22 @@ var (
 
 func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 	if requestGifRegex.MatchString(msg.Text) {
-		keyword := requestGifRegex.FindStringSubmatch(msg.Text)[1]
-		gifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? ORDER BY RANDOM() LIMIT 1;", keyword)
-		defer gifRows.Close()
+		// keyword := requestGifRegex.FindStringSubmatch(msg.Text)[1]
+		// gifRows, err := db.Query("SELECT url FROM gifbot_gifs WHERE keyword = ? ORDER BY RANDOM() LIMIT 1;", keyword)
+		// defer gifRows.Close()
 
-		if err != nil {
-			log.Fatalf("Could not retrieve gif: %s", err)
-		}
+		// if err != nil {
+		// 	log.Fatalf("Could not retrieve gif: %s", err)
+		// }
 
-		if gifRows.Next() == true {
-			gifUrl := ""
-			gifRows.Scan(&gifUrl)
+		// if gifRows.Next() == true {
+		// 	gifUrl := ""
+		// 	gifRows.Scan(&gifUrl)
 
-			rtm.SendMessage(rtm.NewOutgoingMessage(gifUrl, msg.Channel))
-		} else {
-			rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", msg.Channel))
-		}
+		// 	rtm.SendMessage(rtm.NewOutgoingMessage(gifUrl, msg.Channel))
+		// } else {
+		// 	rtm.SendMessage(rtm.NewOutgoingMessage("You haven't given me anything for that, you silly goose.", msg.Channel))
+		// }
 		return
 	}
 
@@ -75,39 +75,39 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 	}
 
 	if deleteGifRegex.MatchString(msg.Text) {
-		matches := deleteGifRegex.FindStringSubmatch(msg.Text)
-		keyword := matches[1]
-		url := matches[2]
+		// matches := deleteGifRegex.FindStringSubmatch(msg.Text)
+		// keyword := matches[1]
+		// url := matches[2]
 
-		_, err := db.Exec("DELETE FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
-		if err != nil {
-			log.Fatalf("DB communication error: %v", err)
-		}
+		// _, err := db.Exec("DELETE FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
+		// if err != nil {
+		// 	log.Fatalf("DB communication error: %v", err)
+		// }
 
-		rtm.SendMessage(rtm.NewOutgoingMessage("Aye, sir.", msg.Channel))
+		// rtm.SendMessage(rtm.NewOutgoingMessage("Aye, sir.", msg.Channel))
 		return
 	}
 
 	if attributeGifRegex.MatchString(msg.Text) {
-		matches := attributeGifRegex.FindStringSubmatch(msg.Text)
-		keyword := matches[1]
-		url := matches[2]
+		// matches := attributeGifRegex.FindStringSubmatch(msg.Text)
+		// keyword := matches[1]
+		// url := matches[2]
 
-		gifRows, err := db.Query("SELECT creator FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
-		defer gifRows.Close()
+		// gifRows, err := db.Query("SELECT creator FROM gifbot_gifs WHERE keyword = ? AND url = ?", keyword, url)
+		// defer gifRows.Close()
 
-		if err != nil {
-			log.Fatalf("Could not retrieve gif: %s", err)
-		}
+		// if err != nil {
+		// 	log.Fatalf("Could not retrieve gif: %s", err)
+		// }
 
-		if gifRows.Next() == true {
-			gifCreator := ""
-			gifRows.Scan(&gifCreator)
+		// if gifRows.Next() == true {
+		// 	gifCreator := ""
+		// 	gifRows.Scan(&gifCreator)
 
-			rtm.SendMessage(rtm.NewOutgoingMessage(fmt.Sprintf("<@%s>", gifCreator), msg.Channel))
-		} else {
-			rtm.SendMessage(rtm.NewOutgoingMessage("No matching gifs were found", msg.Channel))
-		}
+		// 	rtm.SendMessage(rtm.NewOutgoingMessage(fmt.Sprintf("<@%s>", gifCreator), msg.Channel))
+		// } else {
+		// 	rtm.SendMessage(rtm.NewOutgoingMessage("No matching gifs were found", msg.Channel))
+		// }
 		return
 	}
 
@@ -120,23 +120,6 @@ func handleMessage(db *sql.DB, rtm *slack.RTM, msg slack.Msg) {
 			".gifattribute <keyword> <url> Figure out who is responsible for a URL.\n" +
 			"```"
 		rtm.SendMessage(rtm.NewOutgoingMessage(helpText, msg.Channel))
-	}
-}
-
-func migrate(db *sql.DB) {
-	existingTableRows, err := db.Query("SELECT name FROM sqlite_temp_master WHERE type='table';")
-	defer existingTableRows.Close()
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-
-	// No tables exist
-	if existingTableRows.Next() == false {
-		db.Exec("CREATE TABLE gifbot_metadata (key text, value text);")
-		db.Exec("CREATE TABLE gifbot_gifs (keyword text, url text, creator text);")
-		db.Exec("CREATE INDEX idx_gifbot_gifs_keyword_url ON gifbot_gifs (keyword, url);")
-		db.Exec("INSERT INTO gifbot_metadata (\"schema_version\", \"1\");")
-		return
 	}
 }
 
@@ -161,9 +144,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not connect to db: %v", err)
 	}
-
-	// Run migrations
-	migrate(db)
 
 	// Set up slack connection
 	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
