@@ -11,10 +11,6 @@ import (
 
 	"github.com/nlopes/slack"
 
-	"database/sql"
-
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/go-redis/redis/v8"
 )
 
@@ -112,17 +108,6 @@ func main() {
 
 	rdb := redis.NewClient(rdbopt)
 	defer rdb.Close()
-
-	db, err := sql.Open("sqlite3", os.Getenv("DATABASE_PATH"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		log.Fatalf("Could not connect to db: %v", err)
-	}
 
 	// Set up slack connection
 	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
