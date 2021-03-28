@@ -15,13 +15,13 @@ import (
 )
 
 var (
-	requestGifRegex = regexp.MustCompile("^\\.gif ([^ ]+)$")
+	requestGifRegex = regexp.MustCompile(`^\.gif ([^ ]+)$`)
 
-	storeGifRegex = regexp.MustCompile("^\\.gifstore ([^ ]+) <([^ ]+)>$")
+	storeGifRegex = regexp.MustCompile(`^\.gifstore ([^ ]+) <([^ ]+)>$`)
 
-	deleteGifRegex = regexp.MustCompile("^\\.gifdelete ([^ ]+) <([^ ]+)>$")
+	deleteGifRegex = regexp.MustCompile(`^\.gifdelete ([^ ]+) <([^ ]+)>$`)
 
-	attributeGifRegex = regexp.MustCompile("^\\.gifattribute ([^ ]+) <([^ ]+)>$")
+	attributeGifRegex = regexp.MustCompile(`^\.gifattribute ([^ ]+) <([^ ]+)>$`)
 
 	botId = ""
 
